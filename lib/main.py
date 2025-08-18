@@ -22,7 +22,7 @@ from .response import Response, ACCESS_ALLOWED_OBJECT_ACE, ACCESS_ALLOWED_ACE, A
 from impacket.ldap.ldaptypes import SR_SECURITY_DESCRIPTOR
 from .sid import KNOWN_SIDS, name_from_sid
 
-show_banner = '''
+show_banner = r"""
 
           _____
          |A .  | _____
@@ -37,7 +37,7 @@ show_banner = '''
 
         Parse and log a target principal's DACL.
                                     @garrfoster
-'''
+"""
 
 
 def arg_parse():
@@ -494,7 +494,7 @@ class magic:
             print("Description: {}".format(user.description))
         if user.dnshostname:
             print("DNS Hostnae: {}".format(user.dnshostname))
-        print("Owner SID: {} {}\{}".format(user.owner_sid.formatCanonical(), owner_domain, owner_name))
+        print("Owner SID: {} {}\\{}".format(user.owner_sid.formatCanonical(), owner_domain, owner_name))
 
         #write perms
         write_owner_sids = set()
@@ -682,7 +682,7 @@ def print_sids(sids, sids_resolver, offset=0):
 	for sid in sids:
 		if sid not in ignoresids:
 			domain, name = sids_resolver.get_name_from_sid(sid)
-			msg.append("{} {}\{}".format(sid, domain, name))
+			msg.append("{} {}\\{}".format(sid, domain, name))
 	print("\n".join(["{}{}".format(blanks, line) for line in msg]))
 
 
