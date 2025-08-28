@@ -22,7 +22,7 @@ from .response import Response, ACCESS_ALLOWED_OBJECT_ACE, ACCESS_ALLOWED_ACE, A
 from impacket.ldap.ldaptypes import SR_SECURITY_DESCRIPTOR
 from .sid import KNOWN_SIDS, name_from_sid
 
-show_banner = '''
+show_banner = r"""
 
           _____
          |A .  | _____
@@ -37,7 +37,8 @@ show_banner = '''
 
         Parse and log a target principal's DACL.
                                     @garrfoster
-'''
+"""
+
 
 def arg_parse():
     parser = argparse.ArgumentParser(add_help=True, description="Tool to enumerate a single target's DACL in Active Directory")
@@ -46,30 +47,30 @@ def arg_parse():
     optional_group = parser.add_argument_group("Optional Flags")
 
     auth_group.add_argument(
-        'target',
-        action='store',
-        help='[[domain/username[:password]@]<address>',
-        type=target_type
-        )
+        "target",
+        action="store",
+        help="[[domain/]username[:password]@]<targetName or address>"
+    )
 
     auth_group.add_argument(
         '-ldaps',
         action="store_true",
-        help='Use LDAPS isntead of LDAP')
+        help='Use LDAPS isntead of LDAP'
+    )
 
     optional_group.add_argument(
         ""
         "-dc-ip",
         help = "IP address or FQDN of domain controller",
         required=False
-        )
+    )
     optional_group.add_argument(
         "-k", "--kerberos",
         action="store_true",
         help='Use Kerberos authentication. Grabs credentials from ccache file '
         '(KRB5CCNAME) based on target parameters. If valid credentials cannot be found, it will use the '
         'ones specified in the command line'
-        )
+    )
     
     optional_group.add_argument(
         "-no-pass",
@@ -88,30 +89,33 @@ def arg_parse():
         action="store",
         metavar="hex key",
         help='AES key to use for Kerberos Authentication (128 or 256 bits)'
-        )
-   #need to fix this 
+    )
+    # need to fix this 
     optional_group.add_argument(
         "-debug",
         action="store_true",
         help="Enable verbose logging.",
         required=False
-        )
+    )
 
     optional_group.add_argument(
         "-no-smb",
         action="store_true",
-        help="Do not resolve DC hostname through SMB. Requires a FQDN with -dc-ip.")
-
+        help="Do not resolve DC hostname through SMB. Requires a FQDN with -dc-ip."
+    )
 
     if len(sys.argv) == 1:
         parser.print_help()
         sys.exit(1)
 
     args = parser.parse_args()
-    args.userdomain = args.target[0]
-    args.username = args.target[1]
-    args.password = args.target[2]
-    args.address = args.target[3]
+
+    # parse the target
+    args.userdomain, args.username, args.password, args.address = parse_target(args.target)
+    if args.dc_ip is None:
+        args.dc_ip = args.address
+    if args.userdomain is None:
+        args.userdomain = ""
 
     args.lmhash = ""
     args.nthash = ""
@@ -123,23 +127,6 @@ def arg_parse():
 
     return args
 
-def target_type(target):
-    domain, username, password, address = parse_target(target)
-
-    if username == "":
-        raise argparse.ArgumentTypeError("Username must be specified")
-
-    if domain == "":
-        raise argparse.ArgumentTypeError(
-            "Domain of user '{}' must be specified".format(username)
-        )
-
-    if address == "":
-        raise argparse.ArgumentTypeError(
-            "Target address (hostname or IP) must be specified"
-        )
-
-    return domain, username, password, address
 
 def get_dn(domain):
     components = domain.split('.')
@@ -148,6 +135,7 @@ def get_dn(domain):
         base += f',DC={comp}'
     
     return base[1:]
+
 
 def get_machine_name(domain_controller, domain):
     if domain_controller is not None:
@@ -162,6 +150,7 @@ def get_machine_name(domain_controller, domain):
     else:
         s.logoff()
     return s.getServerName()
+
 
 def init_ldap_connection(target, tls_version, domain, username, password, lmhash, nthash, domain_controller, kerberos, hashes, aesKey):
     user = '%s\\%s' % (domain, username)
@@ -191,6 +180,7 @@ def init_ldap_connection(target, tls_version, domain, username, password, lmhash
 
     return ldap_server, ldap_session
 
+
 def init_ldap_session(domain, username, password, lmhash, nthash, kerberos, domain_controller, ldaps, hashes, aesKey, no_smb):
     if kerberos:
         if no_smb:
@@ -212,6 +202,7 @@ def init_ldap_session(domain, username, password, lmhash, nthash, kerberos, doma
             return init_ldap_connection(target, ssl.PROTOCOL_TLSv1, domain, username, password, lmhash, nthash, domain_controller, kerberos, hashes, aesKey)
     else:
         return init_ldap_connection(target, None, domain, username, password, lmhash, nthash, domain_controller, kerberos, hashes, aesKey)
+
 
 def ldap3_kerberos_login(connection, target, user, password, domain='', lmhash='', nthash='', aesKey='', kdcHost=None, TGT=None, TGS=None, useCache=True):
     from pyasn1.codec.ber import encoder, decoder
@@ -370,6 +361,7 @@ def ldap3_kerberos_login(connection, target, user, password, domain='', lmhash='
 
     return True
 
+
 class magic:
     _separator = '--------------------'
     # bofhound expects some attributes in a certain format
@@ -502,7 +494,7 @@ class magic:
             print("Description: {}".format(user.description))
         if user.dnshostname:
             print("DNS Hostnae: {}".format(user.dnshostname))
-        print("Owner SID: {} {}\{}".format(user.owner_sid.formatCanonical(), owner_domain, owner_name))
+        print("Owner SID: {} {}\\{}".format(user.owner_sid.formatCanonical(), owner_domain, owner_name))
 
         #write perms
         write_owner_sids = set()
@@ -681,6 +673,7 @@ class magic:
                 print("      No entries found.")
         print("")
 
+
 #ignoresids = ["S-1-3-0", "S-1-5-18", "S-1-5-10", "S-1-1-0"]
 def print_sids(sids, sids_resolver, offset=0):
 	blanks = " " * offset
@@ -689,8 +682,9 @@ def print_sids(sids, sids_resolver, offset=0):
 	for sid in sids:
 		if sid not in ignoresids:
 			domain, name = sids_resolver.get_name_from_sid(sid)
-			msg.append("{} {}\{}".format(sid, domain, name))
+			msg.append("{} {}\\{}".format(sid, domain, name))
 	print("\n".join(["{}{}".format(blanks, line) for line in msg]))
+
 
 def guid_to_string(guid):
     return "{:02x}{:02x}{:02x}{:02x}-{:02x}{:02x}-{:02x}{:02x}-{:02x}{:02x}-{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}".format(
@@ -700,6 +694,7 @@ def guid_to_string(guid):
         guid[8], guid[9],
         guid[10], guid[11], guid[12], guid[13], guid[14], guid[15]
     )
+
 
 def ldap_get_name_from_sid(search_base,ldap_session, sid):
     if type(sid) is not str:
@@ -719,6 +714,7 @@ def ldap_get_name_from_sid(search_base,ldap_session, sid):
             if attr == 'sAMAccountName':
                 name = (entry[attr].value)
                 return name
+
 
 def ldap_get_domain_from_sid(search_base, ldap_session, sid):
     if type(sid) is not str:
@@ -757,7 +753,6 @@ def bofhound_logging():
 	if not os.path.isdir(logs_dir):
 		os.mkdir(logs_dir)
 	return logs_dir
-
 
 
 def main():
@@ -823,8 +818,8 @@ def main():
                 ldapsearch.print_user(user, sids_resolver)
                 build_filter = input ("Enter target sAMAccountName or distinguishedName: ").lower()
 
-class SidsResolver:
 
+class SidsResolver:
     def __init__(self, ldap_server, ldap_session, domain):
         self.ldap_server = ldap_server
         self.ldap_session = ldap_session
@@ -864,6 +859,7 @@ class SidsResolver:
         name = ldap_get_domain_from_sid(self.search_base, self.ldap_session, sid)
         self.domain_sids[sid] = name
         return name
+
 
 #thanks dirkjan
 class ACCESS_MASK:
